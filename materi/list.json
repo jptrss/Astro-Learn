@@ -1,0 +1,29 @@
+[
+  {
+    "kategori": "Matematika Dasar",
+    "materi": [
+      { "id": "matematika-logaritma", "judul": "Logaritma & Eksponensial" },
+      { "id": "matematika-trigonometri", "judul": "Trigonometri" },
+      { "id": "matematika-kalkulus", "judul": "Kalkulus Dasar" },
+      { "id": "matematika-irisan-kerucut", "judul": "Irisan Kerucut" }
+    ]
+  },
+  {
+    "kategori": "Fisika Dasar",
+    "materi": [
+      { "id": "fisika-vektor", "judul": "Vektor & Matriks" },
+      { "id": "fisika-kinematika", "judul": "Kinematika & Dinamika" },
+      { "id": "fisika-termodinamika", "judul": "Gas Ideal & Termodinamika" },
+      { "id": "fisika-listrik-magnet", "judul": "Listrik & Magnet" },
+      { "id": "fisika-modern", "judul": "Fisika Modern" }
+    ]
+  },
+  {
+    "kategori": "Astronomi Dasar",
+    "materi": [
+      { "id": "astronomi-konversi", "judul": "Konversi Satuan" },
+      { "id": "astronomi-paralaks", "judul": "Paralaks" },
+      { "id": "astronomi-diameter-sudut", "judul": "Diameter Sudut" }
+    ]
+  }
+]
