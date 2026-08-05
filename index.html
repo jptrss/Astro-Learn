@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AstroLearn | OSN Astronomi</title>
+    <!-- Tailwind CSS untuk styling modern -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- MathJax untuk LaTeX -->
+    <script>
+        MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' },
+            startup: { typeset: false }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        :root {
+            --glow-color: #0ea5e9;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617; /* Slate 950 */
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        h1, h2, h3, .font-space {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        /* Efek Futuristik & Glassmorphism */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glow-text {
+            text-shadow: 0 0 15px var(--glow-color);
+        }
+        .glow-border:hover {
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.4);
+            border-color: var(--glow-color);
+        }
+        /* Animasi Transisi Halaman */
+        .fade-in {
+            animation: fadeIn 0.4s ease-in-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Background Partikel (Simulasi CSS murni) */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: -1;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <div class="bg-grid"></div>
+
+    <!-- Navbar -->
+    <nav class="glass sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
+        <div class="text-2xl font-bold font-space flex items-center gap-2 cursor-pointer" onclick="navigate('landing')">
+            <span class="text-sky-400">✧</span> AstroLearn
+        </div>
+        <div id="nav-menu" class="space-x-6 text-sm font-medium">
+            <!-- Diinjeksi oleh JS berdasarkan status login -->
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main id="app" class="flex-grow w-full max-w-7xl mx-auto px-6 py-8">
+        <!-- Konten akan dirender di sini oleh JavaScript -->
+    </main>
+
+    <script>
+        // --- DATA SIMULASI (Sesuai Gambar) ---
+        const silabus = [
+            {
+                kategori: "Matematika Dasar",
+                materi: ["Logaritma & Eksponensial", "Trigonometri", "Kalkulus Dasar (Limit, Turunan, Integral)", "Irisan Kerucut"]
+            },
+            {
+                kategori: "Fisika Dasar",
+                materi: ["Vektor & Matriks", "Kinematika & Dinamika", "Gas Ideal & Termodinamika", "Listrik & Magnet", "Fisika Modern"]
+            },
+            {
+                kategori: "Astronomi Dasar",
+                materi: ["Konversi Satuan", "Paralaks", "Diameter Sudut"]
+            }
+        ];
+
+        // --- STATE MANAGEMENT ---
+        let isLoggedIn = false;
+
+        // --- ROUTER SEDERHANA ---
+        function navigate(page) {
+            const app = document.getElementById('app');
+            app.innerHTML = ''; // Bersihkan konten
+            app.className = "flex-grow w-full max-w-7xl mx-auto px-6 py-8 fade-in";
+            
+            updateNavbar();
+
+            if (page === 'landing') renderLanding(app);
+            else if (page === 'login') renderLogin(app);
+            else if (page === 'dashboard') renderDashboard(app);
+            else if (page === 'materi') renderMateri(app);
+            
+            // Render ulang LaTeX jika ada di halaman baru
+            setTimeout(() => {
+                if (window.MathJax) {
+                    MathJax.typesetPromise();
+                }
+            }, 100);
+        }
+
+        // --- KOMPONEN NAVIGASI ---
+        function updateNavbar() {
+            const nav = document.getElementById('nav-menu');
+            if (isLoggedIn) {
+                nav.innerHTML = `
+                    <button onclick="navigate('dashboard')" class="hover:text-sky-400 transition">Dashboard</button>
+                    <button onclick="isLoggedIn=false; navigate('landing')" class="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/40 transition">Logout</button>
+                `;
+            } else {
+                nav.innerHTML = `
+                    <button onclick="navigate('login')" class="px-5 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.5)] transition font-space">Login</button>
+                `;
+            }
+        }
+
+        // --- HALAMAN LANDING ---
+        function renderLanding(container) {
+            container.innerHTML = `
+                <div class="text-center mt-20">
+                    <h1 class="text-5xl md:text-7xl font-bold mb-6 glow-text tracking-tight">Kuasai Alam Semesta.</h1>
+                    <p class="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">Platform persiapan OSN Astronomi terlengkap. Pelajari konsep, pahami persamaan matematis, dan drill soal dari tingkat Kabupaten hingga Nasional.</p>
+                    <button onclick="navigate('login')" class="px-8 py-4 bg-sky-500 text-white text-lg rounded-full hover:bg-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.6)] transition-all transform hover:scale-105 font-space font-bold">
+                        Mulai Penjelajahan 🚀
+                    </button>
+                </div>
+            `;
+        }
+
+        // --- HALAMAN LOGIN ---
+        function renderLogin(container) {
+            container.innerHTML = `
+                <div class="max-w-md mx-auto mt-20 glass p-8 rounded-2xl border-t border-sky-500/30">
+                    <h2 class="text-3xl font-bold font-space mb-6 text-center">Akses Modul</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Email</label>
+                            <input type="email" value="astro@orbit.com" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Password</label>
+                            <input type="password" value="password123" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
+                        </div>
+                        <button onclick="isLoggedIn=true; navigate('dashboard')" class="w-full bg-sky-500 text-white rounded-lg px-4 py-3 mt-4 hover:bg-sky-400 transition font-bold font-space shadow-lg shadow-sky-500/30">
+                            Masuk Ke Sistem
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- HALAMAN DASHBOARD ---
+        function renderDashboard(container) {
+            container.innerHTML = `
+                <h2 class="text-3xl font-bold font-space mb-2">Selamat Datang, Komandan.</h2>
+                <p class="text-slate-400 mb-8">Pilih misi pembelajaranmu hari ini.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Card Belajar Materi -->
+                    <div onclick="navigate('materi')" class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
+                        <div>
+                            <div class="w-12 h-12 bg-sky-500/20 text-sky-400 rounded-xl flex items-center justify-center text-2xl mb-4">📚</div>
+                            <h3 class="text-xl font-bold mb-2">Belajar Materi</h3>
+                            <p class="text-sm text-slate-400 mb-4">Eksplorasi konsep Matematika, Fisika, dan Astronomi Dasar.</p>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-3">
+                            <span class="text-xs text-slate-400 block mb-1">Progres Terakhir:</span>
+                            <span class="text-sm font-semibold text-sky-300">Paralaks (Astronomi Dasar) - 45%</span>
+                        </div>
+                    </div>
+
+                    <!-- Card Drill Soal -->
+                    <div class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
+                        <div>
+                            <div class="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-xl flex items-center justify-center text-2xl mb-4">🎯</div>
+                            <h3 class="text-xl font-bold mb-2">Drill Soal</h3>
+                            <p class="text-sm text-slate-400 mb-4">Latihan soal OSK, OSP, dan OSN tahun-tahun sebelumnya.</p>
+                        </div>
+                        <div class="mt-4 text-sm font-medium text-purple-400">Mulai Simulasi &rarr;</div>
+                    </div>
+
+                    <!-- Card Kontes -->
+                    <div class="glass p-6 rounded-2xl border border-slate-700 relative overflow-hidden group opacity-80 cursor-not-allowed">
+                        <div class="absolute inset-0 bg-slate-900/60 z-10 flex items-center justify-center">
+                            <span class="px-3 py-1 bg-slate-800 text-xs font-bold rounded-full border border-slate-600">COMING SOON</span>
+                        </div>
+                        <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center text-2xl mb-4">🏆</div>
+                        <h3 class="text-xl font-bold mb-2">Kontes</h3>
+                        <p class="text-sm text-slate-400">Uji kemampuanmu secara real-time dengan peserta lain di seluruh Indonesia.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- HALAMAN BELAJAR MATERI ---
+        function renderMateri(container) {
+            // Generate Sidebar dari Data Simulasi
+            let sidebarHTML = '';
+            silabus.forEach(topic => {
+                sidebarHTML += `<div class="mb-6">
+                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">${topic.kategori}</h4>
+                    <ul class="space-y-2">`;
+                topic.materi.forEach(item => {
+                    // Beri highlight untuk contoh "Paralaks"
+                    const isActive = item === "Paralaks" ? "bg-sky-500/20 text-sky-400 border-l-2 border-sky-400" : "text-slate-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent";
+                    sidebarHTML += `<li class="${isActive} px-3 py-2 cursor-pointer text-sm transition">${item}</li>`;
+                });
+                sidebarHTML += `</ul></div>`;
+            });
+
+            container.innerHTML = `
+                <div class="flex flex-col md:flex-row gap-8">
+                    <!-- Sidebar Topik -->
+                    <aside class="w-full md:w-64 flex-shrink-0">
+                        <button onclick="navigate('dashboard')" class="text-sm text-slate-400 hover:text-white mb-6 flex items-center gap-2">&larr; Kembali</button>
+                        <div class="glass p-4 rounded-xl sticky top-24 h-[80vh] overflow-y-auto hidden-scrollbar">
+                            ${sidebarHTML}
+                        </div>
+                    </aside>
+
+                    <!-- Konten Materi (Contoh: Paralaks) -->
+                    <article class="flex-grow glass p-8 rounded-2xl border border-slate-700 relative">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 blur-3xl rounded-full"></div>
+                        
+                        <header class="mb-8 border-b border-slate-700/50 pb-6">
+                            <span class="text-sky-400 text-sm font-bold tracking-wider uppercase mb-2 block">Astronomi Dasar</span>
+                            <h2 class="text-4xl font-bold font-space">Paralaks Trigonometri</h2>
+                        </header>
+
+                        <div class="space-y-6 text-slate-300 leading-relaxed">
+                            <p>Paralaks adalah pergeseran kedudukan suatu objek yang diamati karena perpindahan tempat pengamat. Dalam astronomi, paralaks digunakan untuk mengukur jarak bintang yang relatif dekat.</p>
+                            
+                            <div class="bg-slate-900/80 p-6 rounded-xl border border-sky-500/20 my-6">
+                                <h4 class="text-white font-bold mb-3 flex items-center gap-2"><span class="text-sky-400">✦</span> Konsep Dasar & Rumus</h4>
+                                <p class="mb-4">Jika sudut paralaks dinyatakan dalam detik busur (arcsecond) dan jarak dalam parsek (pc), maka persamaannya adalah:</p>
+                                <div class="text-center text-2xl py-4 bg-black/30 rounded-lg overflow-x-auto">
+                                    $$ d = \\frac{1}{p} $$
+                                </div>
+                                <p class="text-sm text-slate-400 mt-4">Dimana <br> $d$ = Jarak bintang (Parsek/pc)<br> $p$ = Sudut paralaks (Detik busur / ")</p>
+                            </div>
+
+                            <p>Satu parsek didefinisikan sebagai jarak di mana sebuah bintang memiliki paralaks sebesar $1''$ jika diamati dari basis yang panjangnya 1 Satuan Astronomi (SA).</p>
+
+                            <!-- Interaktif / Latihan Soal di tengah materi -->
+                            <div class="bg-indigo-900/30 p-6 rounded-xl border border-indigo-500/30 mt-8">
+                                <h4 class="text-indigo-300 font-bold mb-2">Latihan Singkat (Drill Interaktif)</h4>
+                                <p class="text-sm mb-4">Sebuah bintang Proxima Centauri memiliki sudut paralaks sebesar $0.768''$. Berapakah jaraknya dalam satuan parsek?</p>
+                                <div class="flex gap-4">
+                                    <input type="text" placeholder="Ketik jawabanmu..." class="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm">
+                                    <button class="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-400 transition text-sm font-bold">Cek Jawaban</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <footer class="mt-12 flex justify-between items-center pt-6 border-t border-slate-700/50">
+                            <button class="px-4 py-2 text-slate-400 hover:text-white transition text-sm">&larr; Konversi Satuan</button>
+                            <button class="px-6 py-2 bg-sky-500/20 text-sky-400 border border-sky-500/50 rounded-lg hover:bg-sky-500 hover:text-white transition font-bold text-sm">Selanjutnya: Diameter Sudut &rarr;</button>
+                        </footer>
+                    </article>
+                </div>
+            `;
+        }
+
+        // Inisialisasi awal
+        navigate('landing');
+    </script>
+</body>
+</html>
