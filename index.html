@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AstroLearn | OSN Astronomi</title>
-    <!-- Tailwind CSS untuk styling modern -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- MathJax untuk LaTeX -->
+    <!-- MathJax & Marked -->
     <script>
         MathJax = {
             tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
@@ -20,41 +20,30 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <style>
-        :root {
-            --glow-color: #0ea5e9;
-        }
+        :root { --glow-color: #0ea5e9; }
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #020617; /* Slate 950 */
+            background-color: #020617;
             color: #f8fafc;
             overflow-x: hidden;
         }
-        h1, h2, h3, .font-space {
-            font-family: 'Space Grotesk', sans-serif;
-        }
-        /* Efek Futuristik & Glassmorphism */
+        h1, h2, h3, .font-space { font-family: 'Space Grotesk', sans-serif; }
         .glass {
             background: rgba(30, 41, 59, 0.7);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .glow-text {
-            text-shadow: 0 0 15px var(--glow-color);
-        }
+        .glow-text { text-shadow: 0 0 15px var(--glow-color); }
         .glow-border:hover {
             box-shadow: 0 0 20px rgba(14, 165, 233, 0.4);
             border-color: var(--glow-color);
         }
-        /* Animasi Transisi Halaman */
-        .fade-in {
-            animation: fadeIn 0.4s ease-in-out forwards;
-        }
+        .fade-in { animation: fadeIn 0.4s ease-in-out forwards; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        /* Background Partikel (Simulasi CSS murni) */
         .bg-grid {
             background-size: 40px 40px;
             background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
@@ -72,233 +61,368 @@
         <div class="text-2xl font-bold font-space flex items-center gap-2 cursor-pointer" onclick="navigate('landing')">
             <span class="text-sky-400">✧</span> AstroLearn
         </div>
-        <div id="nav-menu" class="space-x-6 text-sm font-medium">
-            <!-- Diinjeksi oleh JS berdasarkan status login -->
-        </div>
+        <div id="nav-menu" class="space-x-6 text-sm font-medium"></div>
     </nav>
 
     <!-- Main Content Container -->
-    <main id="app" class="flex-grow w-full max-w-7xl mx-auto px-6 py-8">
-        <!-- Konten akan dirender di sini oleh JavaScript -->
-    </main>
+    <main id="app" class="flex-grow w-full max-w-7xl mx-auto px-6 py-8"></main>
 
-    <script>
-    // --- STATE MANAGEMENT ---
-    let isLoggedIn = false;
+    <!-- Firebase SDK (Modular Version 10) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            signOut, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            getDoc 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // --- ROUTER ---
-    function navigate(page) {
-        const app = document.getElementById('app');
-        app.innerHTML = '';
-        app.className = "flex-grow w-full max-w-7xl mx-auto px-6 py-8 fade-in";
-        
-        updateNavbar();
+        // === 1. KONFIGURASI FIREBASE ===
+        // Ganti dengan konfigurasi dari Firebase Console milikmu!
+        const firebaseConfig = {
+  apiKey: "AIzaSyAlD1R_wQOztXC8g8c4BmF2Km3p9sDbFSk",
+  authDomain: "astrolearn-app.firebaseapp.com",
+  projectId: "astrolearn-app",
+  storageBucket: "astrolearn-app.firebasestorage.app",
+  messagingSenderId: "131107962381",
+  appId: "1:131107962381:web:d7d28ff2609f938c29df44",
+  measurementId: "G-1E5YNGGSYF"
+};
 
-        if (page === 'landing') renderLanding(app);
-        else if (page === 'login') renderLogin(app);
-        else if (page === 'dashboard') renderDashboard(app);
-        else if (page === 'materi') renderMateri(app);
-    }
 
-    // --- NAVBAR ---
-    function updateNavbar() {
-        const nav = document.getElementById('nav-menu');
-        if (isLoggedIn) {
-            nav.innerHTML = `
-                <button onclick="navigate('dashboard')" class="hover:text-sky-400 transition">Dashboard</button>
-                <button onclick="isLoggedIn=false; navigate('landing')" class="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/40 transition">Logout</button>
-            `;
-        } else {
-            nav.innerHTML = `
-                <button onclick="navigate('login')" class="px-5 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.5)] transition font-space">Login</button>
-            `;
+        // Inisialisasi Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // State Global
+        let currentUser = null;
+        let userData = null;
+
+        // === 2. MONITORING STATUS LOGIN (AUTH STATE) ===
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                // Ambil data profil dari database Firestore
+                const userDoc = await getDoc(doc(db, "users", user.uid));
+                if (userDoc.exists()) {
+                    userData = userDoc.data();
+                }
+            } else {
+                currentUser = null;
+                userData = null;
+            }
+            updateNavbar();
+            
+            // Redirect jika pengguna mencoba mengakses halaman terlindungi tanpa login
+            const currentPath = window.location.hash.replace('#', '');
+            if (!currentUser && (currentPath === 'dashboard' || currentPath === 'materi')) {
+                navigate('login');
+            } else if (currentUser && (currentPath === 'login' || currentPath === 'register' || currentPath === 'landing' || currentPath === '')) {
+                navigate('dashboard');
+            } else {
+                navigate(currentPath || 'landing');
+            }
+        });
+
+        // === 3. ROUTER ===
+        window.navigate = function(page) {
+            window.location.hash = page;
+            const container = document.getElementById('app');
+            container.innerHTML = '';
+            container.className = "flex-grow w-full max-w-7xl mx-auto px-6 py-8 fade-in";
+            
+            updateNavbar();
+
+            // Proteksi Halaman Terkunci
+            if (!currentUser && (page === 'dashboard' || page === 'materi')) {
+                renderLogin(container, "Silakan login terlebih dahulu untuk mengakses modul.");
+                return;
+            }
+
+            if (page === 'landing') renderLanding(container);
+            else if (page === 'login') renderLogin(container);
+            else if (page === 'register') renderRegister(container);
+            else if (page === 'dashboard') renderDashboard(container);
+            else if (page === 'materi') renderMateri(container);
+        };
+
+        // === 4. NAVBAR ===
+        function updateNavbar() {
+            const nav = document.getElementById('nav-menu');
+            if (currentUser) {
+                nav.innerHTML = `
+                    <button onclick="navigate('dashboard')" class="hover:text-sky-400 transition">Dashboard</button>
+                    <button onclick="handleLogout()" class="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/40 transition">Logout</button>
+                `;
+            } else {
+                nav.innerHTML = `
+                    <button onclick="navigate('login')" class="hover:text-sky-400 transition">Masuk</button>
+                    <button onclick="navigate('register')" class="px-5 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.5)] transition font-space">Daftar</button>
+                `;
+            }
         }
-    }
 
-    // --- LANDING PAGE ---
-    function renderLanding(container) {
-        container.innerHTML = `
-            <div class="text-center mt-20">
-                <h1 class="text-5xl md:text-7xl font-bold mb-6 glow-text tracking-tight">Kuasai Alam Semesta.</h1>
-                <p class="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">Platform persiapan OSN Astronomi terlengkap. Pelajari konsep, pahami persamaan matematis, dan drill soal dari tingkat Kabupaten hingga Nasional.</p>
-                <button onclick="navigate('login')" class="px-8 py-4 bg-sky-500 text-white text-lg rounded-full hover:bg-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.6)] transition-all transform hover:scale-105 font-space font-bold">
-                    Mulai Penjelajahan 🚀
-                </button>
-            </div>
-        `;
-    }
-
-    // --- LOGIN PAGE ---
-    function renderLogin(container) {
-        container.innerHTML = `
-            <div class="max-w-md mx-auto mt-20 glass p-8 rounded-2xl border-t border-sky-500/30">
-                <h2 class="text-3xl font-bold font-space mb-6 text-center">Akses Modul</h2>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm text-slate-400 mb-1">Email</label>
-                        <input type="email" value="astro@orbit.com" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-slate-400 mb-1">Password</label>
-                        <input type="password" value="password123" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
-                    </div>
-                    <button onclick="isLoggedIn=true; navigate('dashboard')" class="w-full bg-sky-500 text-white rounded-lg px-4 py-3 mt-4 hover:bg-sky-400 transition font-bold font-space shadow-lg shadow-sky-500/30">
-                        Masuk Ke Sistem
+        // === 5. LANDING PAGE ===
+        function renderLanding(container) {
+            container.innerHTML = `
+                <div class="text-center mt-20">
+                    <h1 class="text-5xl md:text-7xl font-bold mb-6 glow-text tracking-tight">Kuasai Alam Semesta.</h1>
+                    <p class="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">Platform persiapan OSN Astronomi terlengkap. Pelajari konsep, pahami persamaan matematis, dan drill soal dari tingkat Kabupaten hingga Nasional.</p>
+                    <button onclick="navigate('${currentUser ? 'dashboard' : 'register'}')" class="px-8 py-4 bg-sky-500 text-white text-lg rounded-full hover:bg-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.6)] transition-all transform hover:scale-105 font-space font-bold">
+                        Mulai Penjelajahan 🚀
                     </button>
                 </div>
-            </div>
-        `;
-    }
-
-    // --- DASHBOARD PAGE ---
-    function renderDashboard(container) {
-        container.innerHTML = `
-            <h2 class="text-3xl font-bold font-space mb-2">Selamat Datang, Komandan.</h2>
-            <p class="text-slate-400 mb-8">Pilih misi pembelajaranmu hari ini.</p>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div onclick="navigate('materi')" class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
-                    <div>
-                        <div class="w-12 h-12 bg-sky-500/20 text-sky-400 rounded-xl flex items-center justify-center text-2xl mb-4">📚</div>
-                        <h3 class="text-xl font-bold mb-2">Belajar Materi</h3>
-                        <p class="text-sm text-slate-400 mb-4">Eksplorasi konsep Matematika, Fisika, dan Astronomi Dasar.</p>
-                    </div>
-                    <div class="bg-slate-800 rounded-lg p-3">
-                        <span class="text-xs text-slate-400 block mb-1">Progres Terakhir:</span>
-                        <span class="text-sm font-semibold text-sky-300">Paralaks (Astronomi Dasar) - 45%</span>
-                    </div>
-                </div>
-
-                <div class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
-                    <div>
-                        <div class="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-xl flex items-center justify-center text-2xl mb-4">🎯</div>
-                        <h3 class="text-xl font-bold mb-2">Drill Soal</h3>
-                        <p class="text-sm text-slate-400 mb-4">Latihan soal OSK, OSP, dan OSN tahun-tahun sebelumnya.</p>
-                    </div>
-                    <div class="mt-4 text-sm font-medium text-purple-400">Mulai Simulasi &rarr;</div>
-                </div>
-
-                <div class="glass p-6 rounded-2xl border border-slate-700 relative overflow-hidden group opacity-80 cursor-not-allowed">
-                    <div class="absolute inset-0 bg-slate-900/60 z-10 flex items-center justify-center">
-                        <span class="px-3 py-1 bg-slate-800 text-xs font-bold rounded-full border border-slate-600">COMING SOON</span>
-                    </div>
-                    <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center text-2xl mb-4">🏆</div>
-                    <h3 class="text-xl font-bold mb-2">Kontes</h3>
-                    <p class="text-sm text-slate-400">Uji kemampuanmu secara real-time dengan peserta lain.</p>
-                </div>
-            </div>
-        `;
-    }
-
-    // --- HALAMAN BELAJAR MATERI (DINAMIS) ---
-    function renderMateri(container) {
-        // 1. Buat layout tempat wadah Sidebar & Isi Materi
-        container.innerHTML = `
-            <div class="flex flex-col md:flex-row gap-8">
-                <!-- Sidebar Wadah Judul Materi -->
-                <aside class="w-full md:w-64 flex-shrink-0">
-                    <button onclick="navigate('dashboard')" class="text-sm text-slate-400 hover:text-white mb-6 flex items-center gap-2">&larr; Kembali</button>
-                    <div id="sidebar-container" class="glass p-4 rounded-xl sticky top-24 h-[80vh] overflow-y-auto hidden-scrollbar">
-                        <p class="text-sm text-slate-400">Memuat daftar materi...</p>
-                    </div>
-                </aside>
-
-                <!-- Wadah Isi Konten Markdown -->
-                <article id="materi-content" class="flex-grow glass p-8 rounded-2xl border border-slate-700 relative">
-                    <p class="text-slate-400">Pilih materi di sebelah kiri untuk mulai belajar.</p>
-                </article>
-            </div>
-        `;
-
-        // 2. Jalankan fungsi pengambilan data
-        loadSidebarMateri();
-        bukaMateri('astronomi-paralaks'); // Buka materi default saat pertama kali masuk
-    }
-
-    // --- FUNGSI DINAMIS 1: Memuat Sidebar dari list.json ---
-    async function loadSidebarMateri() {
-        try {
-            const response = await fetch('/materi/list.json');
-            const data = await response.json();
-            
-            let sidebarHTML = '';
-            data.forEach(topic => {
-                sidebarHTML += `<div class="mb-6">
-                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">${topic.kategori}</h4>
-                    <ul class="space-y-2">`;
-                topic.materi.forEach(item => {
-                    sidebarHTML += `
-                        <li id="menu-${item.id}" onclick="bukaMateri('${item.id}')" 
-                            class="materi-item text-slate-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent px-3 py-2 cursor-pointer text-sm transition rounded-r-lg">
-                            ${item.judul}
-                        </li>`;
-                });
-                sidebarHTML += `</ul></div>`;
-            });
-            
-            document.getElementById('sidebar-container').innerHTML = sidebarHTML;
-        } catch (error) {
-            console.error("Gagal memuat list materi:", error);
-            document.getElementById('sidebar-container').innerHTML = `<p class="text-red-400 text-xs">Gagal memuat silabus.</p>`;
-        }
-    }
-
-    // --- FUNGSI DINAMIS 2: Memuat isi Markdown saat materi diklik ---
-    async function bukaMateri(materiId) {
-        const container = document.getElementById('materi-content');
-        container.innerHTML = `<p class="text-slate-400 animate-pulse">Memuat materi...</p>`;
-
-        // Efek visual pindah aktif menu sidebar
-        document.querySelectorAll('.materi-item').forEach(el => {
-            el.className = "materi-item text-slate-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent px-3 py-2 cursor-pointer text-sm transition rounded-r-lg";
-        });
-        const activeMenu = document.getElementById(`menu-${materiId}`);
-        if (activeMenu) {
-            activeMenu.className = "materi-item bg-sky-500/20 text-sky-400 border-l-2 border-sky-400 px-3 py-2 cursor-pointer text-sm font-semibold transition rounded-r-lg";
+            `;
         }
 
-        try {
-            const response = await fetch(`/materi/${materiId}.md`);
-            if (!response.ok) throw new Error("File tidak ditemukan");
-            
-            const markdownText = await response.text();
-            
-            // Convert Markdown ke HTML
-            const htmlContent = marked.parse(markdownText);
-            
-            // Masukkan ke container
-            container.innerHTML = htmlContent;
-            
-            // Render ulang formula LaTeX
-            if (window.MathJax) {
-                MathJax.typesetPromise([container]);
-            }
-        } catch (err) {
+        // === 6. LOGIN PAGE ===
+        function renderLogin(container, message = '') {
             container.innerHTML = `
-                <div class="text-center py-12">
-                    <p class="text-amber-400 text-lg font-bold mb-2">🚧 Materi Belum Tersedia</p>
-                    <p class="text-slate-400 text-sm">Materi untuk topik ini sedang diracik oleh tim. Silakan periksa file <code class="bg-slate-800 px-2 py-1 rounded text-sky-400">materi/${materiId}.md</code> di repositori kamu.</p>
-                </div>`;
-        }
-    }
+                <div class="max-w-md mx-auto mt-12 glass p-8 rounded-2xl border-t border-sky-500/30">
+                    <h2 class="text-3xl font-bold font-space mb-2 text-center">Masuk Akun</h2>
+                    <p class="text-sm text-slate-400 text-center mb-6">Akses seluruh modul dan latihan soal</p>
+                    
+                    ${message ? `<div class="mb-4 p-3 bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs rounded-lg">${message}</div>` : ''}
+                    <div id="error-msg" class="hidden mb-4 p-3 bg-red-500/20 border border-red-500/50 text-red-300 text-xs rounded-lg"></div>
 
-    // --- FUNGSI INTERAKTIF: Cek Jawaban Latihan Soal ---
-    function cekJawaban(inputId, kunci) {
-        const input = document.getElementById(inputId).value;
-        const feedback = document.getElementById(`feedback-${inputId}`);
-        feedback.classList.remove('hidden');
-        
-        if (parseFloat(input) === kunci) {
-            feedback.className = "text-sm mt-2 text-emerald-400 font-bold";
-            feedback.innerText = "Tepat sekali! 🎉";
-        } else {
-            feedback.className = "text-sm mt-2 text-red-400 font-bold";
-            feedback.innerText = "Jawaban belum tepat, coba hitung lagi.";
-        }
-    }
+                    <form id="login-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Email</label>
+                            <input type="email" id="login-email" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Password</label>
+                            <input type="password" id="login-password" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
+                        </div>
+                        <button type="submit" id="btn-login" class="w-full bg-sky-500 text-white rounded-lg px-4 py-3 mt-4 hover:bg-sky-400 transition font-bold font-space shadow-lg shadow-sky-500/30">
+                            Masuk Ke Sistem
+                        </button>
+                    </form>
+                    <p class="text-xs text-slate-400 text-center mt-6">
+                        Belum punya akun? <a href="#" onclick="navigate('register')" class="text-sky-400 hover:underline">Daftar sekarang</a>
+                    </p>
+                </div>
+            `;
 
-    // Inisialisasi Aplikasi pertama kali
-    navigate('landing');
-</script>
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                const errorBox = document.getElementById('error-msg');
+                const btn = document.getElementById('btn-login');
+
+                try {
+                    btn.innerText = "Memverifikasi...";
+                    btn.disabled = true;
+                    await signInWithEmailAndPassword(auth, email, password);
+                    navigate('dashboard');
+                } catch (err) {
+                    errorBox.classList.remove('hidden');
+                    errorBox.innerText = "Gagal login: Email atau password salah.";
+                    btn.innerText = "Masuk Ke Sistem";
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        // === 7. REGISTER PAGE ===
+        function renderRegister(container) {
+            container.innerHTML = `
+                <div class="max-w-md mx-auto mt-8 glass p-8 rounded-2xl border-t border-sky-500/30">
+                    <h2 class="text-3xl font-bold font-space mb-2 text-center">Buat Akun Baru</h2>
+                    <p class="text-sm text-slate-400 text-center mb-6">Bergabunglah dalam komunitas AstroLearn</p>
+
+                    <div id="reg-error-msg" class="hidden mb-4 p-3 bg-red-500/20 border border-red-500/50 text-red-300 text-xs rounded-lg"></div>
+
+                    <form id="register-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Nama Lengkap</label>
+                            <input type="text" id="reg-name" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Email</label>
+                            <input type="email" id="reg-email" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Password (Minimal 6 Karakter)</label>
+                            <input type="password" id="reg-password" minlength="6" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sky-500 transition">
+                        </div>
+                        <button type="submit" id="btn-register" class="w-full bg-sky-500 text-white rounded-lg px-4 py-3 mt-4 hover:bg-sky-400 transition font-bold font-space shadow-lg shadow-sky-500/30">
+                            Daftar Akun
+                        </button>
+                    </form>
+                    <p class="text-xs text-slate-400 text-center mt-6">
+                        Sudah punya akun? <a href="#" onclick="navigate('login')" class="text-sky-400 hover:underline">Masuk di sini</a>
+                    </p>
+                </div>
+            `;
+
+            document.getElementById('register-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('reg-name').value;
+                const email = document.getElementById('reg-email').value;
+                const password = document.getElementById('reg-password').value;
+                const errorBox = document.getElementById('reg-error-msg');
+                const btn = document.getElementById('btn-register');
+
+                try {
+                    btn.innerText = "Mendaftarkan...";
+                    btn.disabled = true;
+                    // Create user in Authentication
+                    const res = await createUserWithEmailAndPassword(auth, email, password);
+                    
+                    // Store extra profile info in Firestore Database
+                    await setDoc(doc(db, "users", res.user.uid), {
+                        nama: name,
+                        email: email,
+                        createdAt: new Date().toISOString()
+                    });
+
+                    navigate('dashboard');
+                } catch (err) {
+                    errorBox.classList.remove('hidden');
+                    errorBox.innerText = "Gagal mendaftar: " + err.message;
+                    btn.innerText = "Daftar Akun";
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        // === 8. LOGOUT ACTION ===
+        window.handleLogout = async function() {
+            await signOut(auth);
+            navigate('landing');
+        };
+
+        // === 9. DASHBOARD PAGE ===
+        function renderDashboard(container) {
+            const namaUser = userData ? userData.nama : (currentUser ? currentUser.email : "Komandan");
+            container.innerHTML = `
+                <h2 class="text-3xl font-bold font-space mb-2">Selamat Datang, ${namaUser}.</h2>
+                <p class="text-slate-400 mb-8">Pilih misi pembelajaranmu hari ini.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div onclick="navigate('materi')" class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
+                        <div>
+                            <div class="w-12 h-12 bg-sky-500/20 text-sky-400 rounded-xl flex items-center justify-center text-2xl mb-4">📚</div>
+                            <h3 class="text-xl font-bold mb-2">Belajar Materi</h3>
+                            <p class="text-sm text-slate-400 mb-4">Eksplorasi konsep Matematika, Fisika, dan Astronomi Dasar.</p>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-3">
+                            <span class="text-xs text-slate-400 block mb-1">Progres Terakhir:</span>
+                            <span class="text-sm font-semibold text-sky-300">Paralaks (Astronomi Dasar) - 45%</span>
+                        </div>
+                    </div>
+
+                    <div class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
+                        <div>
+                            <div class="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-xl flex items-center justify-center text-2xl mb-4">🎯</div>
+                            <h3 class="text-xl font-bold mb-2">Drill Soal</h3>
+                            <p class="text-sm text-slate-400 mb-4">Latihan soal OSK, OSP, dan OSN tahun-tahun sebelumnya.</p>
+                        </div>
+                        <div class="mt-4 text-sm font-medium text-purple-400">Mulai Simulasi &rarr;</div>
+                    </div>
+
+                    <div class="glass p-6 rounded-2xl border border-slate-700 relative overflow-hidden group opacity-80 cursor-not-allowed">
+                        <div class="absolute inset-0 bg-slate-900/60 z-10 flex items-center justify-center">
+                            <span class="px-3 py-1 bg-slate-800 text-xs font-bold rounded-full border border-slate-600">COMING SOON</span>
+                        </div>
+                        <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center text-2xl mb-4">🏆</div>
+                        <h3 class="text-xl font-bold mb-2">Kontes</h3>
+                        <p class="text-sm text-slate-400">Uji kemampuanmu secara real-time dengan peserta lain.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // === 10. HALAMAN BELAJAR MATERI ===
+        function renderMateri(container) {
+            container.innerHTML = `
+                <div class="flex flex-col md:flex-row gap-8">
+                    <aside class="w-full md:w-64 flex-shrink-0">
+                        <button onclick="navigate('dashboard')" class="text-sm text-slate-400 hover:text-white mb-6 flex items-center gap-2">&larr; Kembali</button>
+                        <div id="sidebar-container" class="glass p-4 rounded-xl sticky top-24 h-[80vh] overflow-y-auto hidden-scrollbar">
+                            <p class="text-sm text-slate-400">Memuat daftar materi...</p>
+                        </div>
+                    </aside>
+
+                    <article id="materi-content" class="flex-grow glass p-8 rounded-2xl border border-slate-700 relative">
+                        <p class="text-slate-400">Pilih materi di sebelah kiri untuk mulai belajar.</p>
+                    </article>
+                </div>
+            `;
+
+            loadSidebarMateri();
+            bukaMateri('astronomi-paralaks');
+        }
+
+        async function loadSidebarMateri() {
+            try {
+                const response = await fetch('/materi/list.json');
+                const data = await response.json();
+                
+                let sidebarHTML = '';
+                data.forEach(topic => {
+                    sidebarHTML += `<div class="mb-6">
+                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">${topic.kategori}</h4>
+                        <ul class="space-y-2">`;
+                    topic.materi.forEach(item => {
+                        sidebarHTML += `
+                            <li id="menu-${item.id}" onclick="bukaMateri('${item.id}')" 
+                                class="materi-item text-slate-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent px-3 py-2 cursor-pointer text-sm transition rounded-r-lg">
+                                ${item.judul}
+                            </li>`;
+                    });
+                    sidebarHTML += `</ul></div>`;
+                });
+                
+                document.getElementById('sidebar-container').innerHTML = sidebarHTML;
+            } catch (error) {
+                document.getElementById('sidebar-container').innerHTML = `<p class="text-red-400 text-xs">Gagal memuat silabus.</p>`;
+            }
+        }
+
+        window.bukaMateri = async function(materiId) {
+            const container = document.getElementById('materi-content');
+            if (!container) return;
+            container.innerHTML = `<p class="text-slate-400 animate-pulse">Memuat materi...</p>`;
+
+            document.querySelectorAll('.materi-item').forEach(el => {
+                el.className = "materi-item text-slate-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent px-3 py-2 cursor-pointer text-sm transition rounded-r-lg";
+            });
+            const activeMenu = document.getElementById(`menu-${materiId}`);
+            if (activeMenu) {
+                activeMenu.className = "materi-item bg-sky-500/20 text-sky-400 border-l-2 border-sky-400 px-3 py-2 cursor-pointer text-sm font-semibold transition rounded-r-lg";
+            }
+
+            try {
+                const response = await fetch(`/materi/${materiId}.md`);
+                if (!response.ok) throw new Error("File tidak ditemukan");
+                
+                const markdownText = await response.text();
+                const htmlContent = marked.parse(markdownText);
+                
+                container.innerHTML = htmlContent;
+                
+                if (window.MathJax) {
+                    MathJax.typesetPromise([container]);
+                }
+            } catch (err) {
+                container.innerHTML = `
+                    <div class="text-center py-12">
+                        <p class="text-amber-400 text-lg font-bold mb-2">🚧 Materi Belum Tersedia</p>
+                        <p class="text-slate-400 text-sm">Materi untuk topik ini sedang diracik oleh tim. Silakan periksa file <code class="bg-slate-800 px-2 py-1 rounded text-sky-400">materi/${materiId}.md</code> di repositori kamu.</p>
+                    </div>`;
+            }
+        };
+    </script>
 </body>
 </html>
