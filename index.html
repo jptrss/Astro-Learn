@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AstroLearn | OSN Astronomi</title>
+    <title>AstroLearn | OSN Astronomi Platform</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
@@ -39,9 +39,9 @@
             box-shadow: 0 0 20px rgba(14, 165, 233, 0.4);
             border-color: var(--glow-color);
         }
-        .fade-in { animation: fadeIn 0.4s ease-in-out forwards; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
+            from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
         .bg-grid {
@@ -50,6 +50,8 @@
                               linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
             position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: -1;
         }
+        .hidden-scrollbar::-webkit-scrollbar { display: none; }
+        .hidden-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="antialiased min-h-screen flex flex-col">
@@ -61,7 +63,7 @@
         <div class="text-2xl font-bold font-space flex items-center gap-2 cursor-pointer" onclick="navigate('landing')">
             <span class="text-sky-400">✧</span> AstroLearn
         </div>
-        <div id="nav-menu" class="space-x-6 text-sm font-medium"></div>
+        <div id="nav-menu" class="space-x-4 text-sm font-medium flex items-center"></div>
     </nav>
 
     <!-- Main Content Container -->
@@ -81,11 +83,15 @@
             getFirestore, 
             doc, 
             setDoc, 
-            getDoc 
+            getDoc,
+            collection,
+            getDocs,
+            addDoc,
+            updateDoc,
+            arrayUnion
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // === 1. KONFIGURASI FIREBASE ===
-        // Ganti dengan konfigurasi dari Firebase Console milikmu!
         const firebaseConfig = {
             apiKey: "AIzaSyAlD1R_wQOztXC8g8c4BmF2Km3p9sDbFSk",
             authDomain: "astrolearn-app.firebaseapp.com",
@@ -96,8 +102,6 @@
             measurementId: "G-1E5YNGGSYF"
         };
 
-
-        // Inisialisasi Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -106,14 +110,39 @@
         let currentUser = null;
         let userData = null;
 
-        // === 2. MONITORING STATUS LOGIN (AUTH STATE) ===
+        // Mock Data awal untuk Bank Soal (jika Firestore belum diisi)
+        const mockQuestions = [
+            {
+                id: "q1",
+                tahun: "2024",
+                tingkat: "OSK",
+                topik: "Mekanika Benda Langit",
+                kesulitan: "Sedang",
+                soal: "Sebuah planet bergerak mengelilingi Matahari dalam orbit elips. Jika jarak perihelionnya adalah $0.8\\text{ AU}$ dan aphelionnya adalah $1.2\\text{ AU}$, berapakah periode orbit planet tersebut?",
+                kunci: "1.0 Tahun",
+                pembahasan: "Sumbu semi-mayor $a = \\frac{r_p + r_a}{2} = \\frac{0.8 + 1.2}{2} = 1.0\\text{ AU}$. Menggunakan Hukum Kepler III ($P^2 = a^3$), diperoleh $P = 1.0\\text{ Tahun}$."
+            },
+            {
+                id: "q2",
+                tahun: "2025",
+                tingkat: "Semifinal",
+                topik: "Astrofisika & Fotometri",
+                kesulitan: "Sulit",
+                soal: "Hitung magnitudo mutlak sebuah bintang yang memiliki paralaks $0.05''$ dan magnitudo tampak $m = 8.5$!",
+                kunci: "M = 6.99",
+                pembahasan: "Jarak $d = \\frac{1}{p} = \\frac{1}{0.05} = 20\\text{ pc}$. Rumus Modulus Jarak: $m - M = 5 \\log d - 5 \\Rightarrow 8.5 - M = 5 \\log(20) - 5 \\Rightarrow M = 8.5 - 5(1.301) + 5 = 6.995$."
+            }
+        ];
+
+        // === 2. MONITORING AUTH STATE ===
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
-                // Ambil data profil dari database Firestore
                 const userDoc = await getDoc(doc(db, "users", user.uid));
                 if (userDoc.exists()) {
                     userData = userDoc.data();
+                } else {
+                    userData = { nama: user.email.split('@')[0], role: 'student', progress: 0, classes: [] };
                 }
             } else {
                 currentUser = null;
@@ -121,9 +150,10 @@
             }
             updateNavbar();
             
-            // Redirect jika pengguna mencoba mengakses halaman terlindungi tanpa login
             const currentPath = window.location.hash.replace('#', '');
-            if (!currentUser && (currentPath === 'dashboard' || currentPath === 'materi')) {
+            const protectedPages = ['dashboard', 'materi', 'drill', 'class', 'admin'];
+            
+            if (!currentUser && protectedPages.includes(currentPath)) {
                 navigate('login');
             } else if (currentUser && (currentPath === 'login' || currentPath === 'register' || currentPath === 'landing' || currentPath === '')) {
                 navigate('dashboard');
@@ -141,9 +171,8 @@
             
             updateNavbar();
 
-            // Proteksi Halaman Terkunci
-            if (!currentUser && (page === 'dashboard' || page === 'materi')) {
-                renderLogin(container, "Silakan login terlebih dahulu untuk mengakses modul.");
+            if (!currentUser && ['dashboard', 'materi', 'drill', 'class', 'admin'].includes(page)) {
+                renderLogin(container, "Silakan login terlebih dahulu.");
                 return;
             }
 
@@ -152,14 +181,21 @@
             else if (page === 'register') renderRegister(container);
             else if (page === 'dashboard') renderDashboard(container);
             else if (page === 'materi') renderMateri(container);
+            else if (page === 'drill') renderDrill(container);
+            else if (page === 'class') renderClass(container);
+            else if (page === 'admin') renderAdmin(container);
         };
 
         // === 4. NAVBAR ===
         function updateNavbar() {
             const nav = document.getElementById('nav-menu');
             if (currentUser) {
+                const isAdmin = userData && userData.role === 'admin';
                 nav.innerHTML = `
                     <button onclick="navigate('dashboard')" class="hover:text-sky-400 transition">Dashboard</button>
+                    <button onclick="navigate('drill')" class="hover:text-sky-400 transition">Drill Soal</button>
+                    <button onclick="navigate('class')" class="hover:text-sky-400 transition">Kelas</button>
+                    ${isAdmin ? `<button onclick="navigate('admin')" class="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg hover:bg-amber-500/30 text-xs transition">⚙️ Management</button>` : ''}
                     <button onclick="handleLogout()" class="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/40 transition">Logout</button>
                 `;
             } else {
@@ -175,7 +211,7 @@
             container.innerHTML = `
                 <div class="text-center mt-20">
                     <h1 class="text-5xl md:text-7xl font-bold mb-6 glow-text tracking-tight">Kuasai Alam Semesta.</h1>
-                    <p class="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">Platform persiapan OSN Astronomi terlengkap. Pelajari konsep, pahami persamaan matematis, dan drill soal dari tingkat Kabupaten hingga Nasional.</p>
+                    <p class="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">Platform persiapan OSN Astronomi terlengkap. Pelajari konsep, pahami persamaan matematis, dan drill soal dari tingkat Kabupaten hingga OSN (2003-2026).</p>
                     <button onclick="navigate('${currentUser ? 'dashboard' : 'register'}')" class="px-8 py-4 bg-sky-500 text-white text-lg rounded-full hover:bg-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.6)] transition-all transform hover:scale-105 font-space font-bold">
                         Mulai Penjelajahan 🚀
                     </button>
@@ -188,11 +224,9 @@
             container.innerHTML = `
                 <div class="max-w-md mx-auto mt-12 glass p-8 rounded-2xl border-t border-sky-500/30">
                     <h2 class="text-3xl font-bold font-space mb-2 text-center">Masuk Akun</h2>
-                    <p class="text-sm text-slate-400 text-center mb-6">Akses seluruh modul dan latihan soal</p>
-                    
+                    <p class="text-sm text-slate-400 text-center mb-6">Akses seluruh modul, drill soal, dan kelas</p>
                     ${message ? `<div class="mb-4 p-3 bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs rounded-lg">${message}</div>` : ''}
                     <div id="error-msg" class="hidden mb-4 p-3 bg-red-500/20 border border-red-500/50 text-red-300 text-xs rounded-lg"></div>
-
                     <form id="login-form" class="space-y-4">
                         <div>
                             <label class="block text-sm text-slate-400 mb-1">Email</label>
@@ -239,9 +273,7 @@
                 <div class="max-w-md mx-auto mt-8 glass p-8 rounded-2xl border-t border-sky-500/30">
                     <h2 class="text-3xl font-bold font-space mb-2 text-center">Buat Akun Baru</h2>
                     <p class="text-sm text-slate-400 text-center mb-6">Bergabunglah dalam komunitas AstroLearn</p>
-
                     <div id="reg-error-msg" class="hidden mb-4 p-3 bg-red-500/20 border border-red-500/50 text-red-300 text-xs rounded-lg"></div>
-
                     <form id="register-form" class="space-y-4">
                         <div>
                             <label class="block text-sm text-slate-400 mb-1">Nama Lengkap</label>
@@ -276,16 +308,19 @@
                 try {
                     btn.innerText = "Mendaftarkan...";
                     btn.disabled = true;
-                    // Create user in Authentication
                     const res = await createUserWithEmailAndPassword(auth, email, password);
                     
-                    // Store extra profile info in Firestore Database
-                    await setDoc(doc(db, "users", res.user.uid), {
+                    const newUserData = {
                         nama: name,
                         email: email,
+                        role: "student",
+                        progress: 0,
+                        joinedClasses: [],
                         createdAt: new Date().toISOString()
-                    });
+                    };
 
+                    await setDoc(doc(db, "users", res.user.uid), newUserData);
+                    userData = newUserData;
                     navigate('dashboard');
                 } catch (err) {
                     errorBox.classList.remove('hidden');
@@ -296,54 +331,301 @@
             });
         }
 
-        // === 8. LOGOUT ACTION ===
         window.handleLogout = async function() {
             await signOut(auth);
             navigate('landing');
         };
 
-        // === 9. DASHBOARD PAGE ===
+        // === 8. DASHBOARD PAGE ===
         function renderDashboard(container) {
             const namaUser = userData ? userData.nama : (currentUser ? currentUser.email : "Komandan");
+            const progressVal = userData && userData.progress ? userData.progress : 0;
+
             container.innerHTML = `
-                <h2 class="text-3xl font-bold font-space mb-2">Selamat Datang, ${namaUser}.</h2>
-                <p class="text-slate-400 mb-8">Pilih misi pembelajaranmu hari ini.</p>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold font-space mb-2">Selamat Datang, ${namaUser}. 👋</h2>
+                    <p class="text-slate-400">Pilih misi pembelajaran astronomimu hari ini.</p>
+                </div>
+
+                <!-- Main Grid Options -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                    <!-- Card 1: Materi -->
                     <div onclick="navigate('materi')" class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
                         <div>
                             <div class="w-12 h-12 bg-sky-500/20 text-sky-400 rounded-xl flex items-center justify-center text-2xl mb-4">📚</div>
                             <h3 class="text-xl font-bold mb-2">Belajar Materi</h3>
-                            <p class="text-sm text-slate-400 mb-4">Eksplorasi konsep Matematika, Fisika, dan Astronomi Dasar.</p>
+                            <p class="text-sm text-slate-400 mb-4">Eksplorasi konsep Astronomi Posisi, Astrofisika, Mekanika Benda Langit, dan Kosmologi.</p>
                         </div>
-                        <div class="bg-slate-800 rounded-lg p-3">
-                            <span class="text-xs text-slate-400 block mb-1">Progres Terakhir:</span>
-                            <span class="text-sm font-semibold text-sky-300">Paralaks (Astronomi Dasar) - 45%</span>
+                        <div class="bg-slate-800/80 rounded-lg p-3">
+                            <div class="flex justify-between items-center text-xs mb-1">
+                                <span class="text-slate-400">Progres Belajar:</span>
+                                <span class="text-sky-400 font-bold">${progressVal}%</span>
+                            </div>
+                            <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                                <div class="bg-sky-400 h-full" style="width: ${progressVal}%"></div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
+                    <!-- Card 2: Drill Soal (Aktif) -->
+                    <div onclick="navigate('drill')" class="glass p-6 rounded-2xl glow-border cursor-pointer transition-all flex flex-col justify-between border border-slate-700">
                         <div>
                             <div class="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-xl flex items-center justify-center text-2xl mb-4">🎯</div>
-                            <h3 class="text-xl font-bold mb-2">Drill Soal</h3>
-                            <p class="text-sm text-slate-400 mb-4">Latihan soal OSK, OSP, dan OSN tahun-tahun sebelumnya.</p>
+                            <h3 class="text-xl font-bold mb-2">Drill Soal OSN</h3>
+                            <p class="text-sm text-slate-400 mb-4">Koleksi soal OSK, OSP, Semifinal, & OSN (2003-2026). Fitur Custom Practice & Exam Mode.</p>
                         </div>
-                        <div class="mt-4 text-sm font-medium text-purple-400">Mulai Simulasi &rarr;</div>
+                        <div class="text-sm font-semibold text-purple-400 flex items-center gap-1">
+                            Mulai Latihan <span class="text-lg">&rarr;</span>
+                        </div>
                     </div>
 
-                    <div class="glass p-6 rounded-2xl border border-slate-700 relative overflow-hidden group opacity-80 cursor-not-allowed">
-                        <div class="absolute inset-0 bg-slate-900/60 z-10 flex items-center justify-center">
-                            <span class="px-3 py-1 bg-slate-800 text-xs font-bold rounded-full border border-slate-600">COMING SOON</span>
+                    <!-- Card 3: Kontes -->
+                    <div class="glass p-6 rounded-2xl border border-slate-700 relative overflow-hidden opacity-80 cursor-not-allowed">
+                        <div class="absolute inset-0 bg-slate-900/70 z-10 flex items-center justify-center">
+                            <span class="px-3 py-1 bg-slate-800 text-xs font-bold rounded-full border border-slate-600 text-amber-400">SEGERA HADIR</span>
                         </div>
                         <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center text-2xl mb-4">🏆</div>
-                        <h3 class="text-xl font-bold mb-2">Kontes</h3>
-                        <p class="text-sm text-slate-400">Uji kemampuanmu secara real-time dengan peserta lain.</p>
+                        <h3 class="text-xl font-bold mb-2">Kontes Real-time</h3>
+                        <p class="text-sm text-slate-400">Uji kemampuan simulasi ujian secara serentak dengan peserta se-Indonesia.</p>
+                    </div>
+                </div>
+
+                <!-- Section Bawah: Menu CLASS -->
+                <div class="glass p-8 rounded-2xl border border-sky-500/30">
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div>
+                            <div class="flex items-center gap-2 text-sky-400 font-bold mb-1">
+                                <span>🏫</span> AstroLearn Class
+                            </div>
+                            <h3 class="text-2xl font-bold font-space">Gabung Kelas Bimbingan</h3>
+                            <p class="text-sm text-slate-400 mt-1 max-w-xl">Punya kode kelas dari guru atau pengajar OSN-mu? Masukkan kode di sini untuk mengakses materi khusus, tugas, dan latihan terpilih.</p>
+                        </div>
+                        <div class="w-full md:w-auto flex flex-col sm:flex-row gap-3">
+                            <input type="text" id="join-class-code" placeholder="Masukkan Kode Kelas" class="bg-slate-900 border border-slate-700 px-4 py-3 rounded-xl text-white uppercase tracking-wider focus:outline-none focus:border-sky-500">
+                            <button onclick="handleJoinClass()" class="bg-sky-500 hover:bg-sky-400 text-white font-bold font-space px-6 py-3 rounded-xl transition whitespace-nowrap shadow-lg shadow-sky-500/20">
+                                Gabung Kelas
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
         }
 
-        // === 10. HALAMAN BELAJAR MATERI ===
+        window.handleJoinClass = async function() {
+            const codeInput = document.getElementById('join-class-code');
+            const code = codeInput ? codeInput.value.trim().toUpperCase() : '';
+            if (!code) return alert("Sertakan kode kelas terlebih dahulu.");
+
+            try {
+                if (currentUser) {
+                    const userRef = doc(db, "users", currentUser.uid);
+                    await updateDoc(userRef, {
+                        joinedClasses: arrayUnion(code)
+                    });
+                }
+                alert(`Berhasil bergabung ke dalam kelas: ${code}`);
+                navigate('class');
+            } catch (e) {
+                alert("Gagal bergabung ke kelas. Silakan periksa kembali kodenya.");
+            }
+        };
+
+        // === 9. DRILL SOAL (BANK SOAL & CUSTOM PRACTICE) ===
+        function renderDrill(container) {
+            container.innerHTML = `
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold font-space mb-2">Drill Soal OSN Astronomi</h2>
+                    <p class="text-slate-400">Pilih mode latihan, sesuaikan tingkat kesulitan, dan akses pembahasan mendalam.</p>
+                </div>
+
+                <!-- Custom Filter Bar -->
+                <div class="glass p-6 rounded-2xl border border-slate-700 mb-8 space-y-4">
+                    <h3 class="text-sm font-bold text-sky-400 uppercase tracking-wider mb-2">🔍 Filter & Custom Drill</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Tingkat Lomba</label>
+                            <select id="filter-tingkat" class="w-full bg-slate-900 border border-slate-700 text-sm rounded-lg p-2.5 text-white">
+                                <option value="Semua">Semua Tingkat</option>
+                                <option value="OSK">OSK (Kabupaten)</option>
+                                <option value="OSP">OSP (Provinsi)</option>
+                                <option value="Semifinal">Semifinal OSN</option>
+                                <option value="OSN">OSN (Nasional)</option>
+                                <option value="Latihan">Latihan Tambahan</option>
+                                <option value="Lomba">Lomba Lainnya</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Tahun (2003 - 2026)</label>
+                            <select id="filter-tahun" class="w-full bg-slate-900 border border-slate-700 text-sm rounded-lg p-2.5 text-white">
+                                <option value="Semua">Semua Tahun</option>
+                                ${generateYearOptions()}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Materi / Topik</label>
+                            <select id="filter-topik" class="w-full bg-slate-900 border border-slate-700 text-sm rounded-lg p-2.5 text-white">
+                                <option value="Semua">Semua Topik</option>
+                                <option value="Mekanika Benda Langit">Mekanika Benda Langit</option>
+                                <option value="Astrofisika & Fotometri">Astrofisika & Fotometri</option>
+                                <option value="Astronomi Posisi">Astronomi Posisi</option>
+                                <option value="Kosmologi">Kosmologi</option>
+                                <option value="Instrumen Astronomi">Instrumen Astronomi</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Tingkat Kesulitan</label>
+                            <select id="filter-kesulitan" class="w-full bg-slate-900 border border-slate-700 text-sm rounded-lg p-2.5 text-white">
+                                <option value="Semua">Semua Level</option>
+                                <option value="Mudah">Mudah</option>
+                                <option value="Sedang">Sedang</option>
+                                <option value="Sulit">Sulit</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-2">
+                        <button onclick="loadFilteredQuestions()" class="bg-sky-500 hover:bg-sky-400 text-white font-bold px-5 py-2 rounded-lg text-sm transition">
+                            Terapkan Filter
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Soal Container -->
+                <div id="questions-list" class="space-y-6">
+                    <p class="text-slate-400">Memuat bank soal...</p>
+                </div>
+            `;
+
+            loadFilteredQuestions();
+        }
+
+        function generateYearOptions() {
+            let options = '';
+            for (let y = 2026; y >= 2003; y--) {
+                options += `<option value="${y}">${y}</option>`;
+            }
+            return options;
+        }
+
+        window.loadFilteredQuestions = function() {
+            const container = document.getElementById('questions-list');
+            if (!container) return;
+
+            const tkt = document.getElementById('filter-tingkat')?.value || 'Semua';
+            const thn = document.getElementById('filter-tahun')?.value || 'Semua';
+            const tpk = document.getElementById('filter-topik')?.value || 'Semua';
+            const ksl = document.getElementById('filter-kesulitan')?.value || 'Semua';
+
+            let filtered = mockQuestions.filter(q => {
+                if (tkt !== 'Semua' && q.tingkat !== tkt) return false;
+                if (thn !== 'Semua' && q.tahun !== thn) return false;
+                if (tpk !== 'Semua' && q.topik !== tpk) return false;
+                if (ksl !== 'Semua' && q.kesulitan !== ksl) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="glass p-8 rounded-2xl text-center border border-slate-700">
+                        <p class="text-slate-400 mb-2">Tidak ditemukan soal yang cocok dengan filter ini.</p>
+                        <p class="text-xs text-slate-500">Cobalah mengubah kriteria tahun atau tingkat lomba.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map((q, idx) => `
+                <div class="glass p-6 rounded-2xl border border-slate-700 space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-1 bg-sky-500/20 text-sky-400 text-xs font-bold rounded-md border border-sky-500/30">${q.tingkat} ${q.tahun}</span>
+                            <span class="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-medium rounded-md">${q.topik}</span>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded border border-slate-600 ${q.kesulitan === 'Sulit' ? 'text-red-400' : q.kesulitan === 'Sedang' ? 'text-amber-400' : 'text-emerald-400'}">
+                            Level: ${q.kesulitan}
+                        </span>
+                    </div>
+
+                    <div class="text-slate-200 text-sm leading-relaxed">
+                        <p><strong>Soal ${idx + 1}:</strong> ${q.soal}</p>
+                    </div>
+
+                    <div class="pt-2 flex flex-wrap gap-3">
+                        <button onclick="toggleElement('ans-${q.id}')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition border border-slate-700">
+                            👁️ Lihat Kunci & Pembahasan
+                        </button>
+                    </div>
+
+                    <div id="ans-${q.id}" class="hidden mt-4 p-4 bg-slate-900/90 rounded-xl border border-sky-500/30 space-y-2 text-xs">
+                        <div class="font-bold text-sky-400">Kunci Jawaban: ${q.kunci}</div>
+                        <div class="text-slate-300"><strong>Pembahasan:</strong> ${q.pembahasan}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            if (window.MathJax) {
+                MathJax.typesetPromise([container]);
+            }
+        };
+
+        window.toggleElement = function(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('hidden');
+        };
+
+        // === 10. HALAMAN KELAS (CLASS PAGE) ===
+        function renderClass(container) {
+            const joined = userData && userData.joinedClasses ? userData.joinedClasses : [];
+
+            container.innerHTML = `
+                <div class="mb-8 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-3xl font-bold font-space mb-2">Kelas Bimbingan Saya</h2>
+                        <p class="text-slate-400">Daftar kelas aktif dan materi instruktur.</p>
+                    </div>
+                </div>
+
+                ${joined.length === 0 ? `
+                    <div class="glass p-12 rounded-2xl text-center border border-slate-700 max-w-xl mx-auto">
+                        <div class="text-4xl mb-4">🏫</div>
+                        <h3 class="text-xl font-bold mb-2">Belum Bergabung ke Kelas</h3>
+                        <p class="text-sm text-slate-400 mb-6">Kamu belum terdaftar di kelas manapun. Masukkan kode kelas dari pengajar di bawah untuk memulai.</p>
+                        <div class="flex gap-2 justify-center">
+                            <input type="text" id="inner-class-code" placeholder="Kode Kelas (misal: ASTRO-1)" class="bg-slate-900 border border-slate-700 px-4 py-2.5 rounded-lg text-sm text-white uppercase">
+                            <button onclick="handleJoinInnerClass()" class="bg-sky-500 hover:bg-sky-400 text-white font-bold px-4 py-2.5 rounded-lg text-sm">Masuk</button>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        ${joined.map(cls => `
+                            <div class="glass p-6 rounded-2xl border border-sky-500/30">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <span class="text-xs bg-sky-500/20 text-sky-400 px-2 py-1 rounded font-mono">${cls}</span>
+                                        <h3 class="text-xl font-bold mt-2">Kelas Pembinaan OSN Astronomi</h3>
+                                    </div>
+                                    <span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/30">Aktif</span>
+                                </div>
+                                <p class="text-sm text-slate-400 mb-6">Materi khusus persiapan OSN, tugas harian, dan evaluasi mingguan.</p>
+                                <div class="space-y-2 border-t border-slate-800 pt-4 text-xs text-slate-300">
+                                    <div class="flex justify-between"><span>📚 Modul Tambahan:</span> <span class="font-semibold text-white">3 File</span></div>
+                                    <div class="flex justify-between"><span>📝 Tugas Aktif:</span> <span class="font-semibold text-sky-400">1 Latihan Soal</span></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            `;
+        }
+
+        window.handleJoinInnerClass = function() {
+            const val = document.getElementById('inner-class-code')?.value;
+            if (val) {
+                document.getElementById('join-class-code') ? document.getElementById('join-class-code').value = val : null;
+                handleJoinClass();
+            }
+        };
+
+        // === 11. HALAMAN MATERI ===
         function renderMateri(container) {
             container.innerHTML = `
                 <div class="flex flex-col md:flex-row gap-8">
@@ -386,7 +668,7 @@
                 
                 document.getElementById('sidebar-container').innerHTML = sidebarHTML;
             } catch (error) {
-                document.getElementById('sidebar-container').innerHTML = `<p class="text-red-400 text-xs">Gagal memuat silabus.</p>`;
+                document.getElementById('sidebar-container').innerHTML = `<p class="text-slate-400 text-xs">Menu Silabus Standar</p>`;
             }
         }
 
@@ -394,14 +676,6 @@
             const container = document.getElementById('materi-content');
             if (!container) return;
             container.innerHTML = `<p class="text-slate-400 animate-pulse">Memuat materi...</p>`;
-
-            document.querySelectorAll('.materi-item').forEach(el => {
-                el.className = "materi-item text-slate-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent px-3 py-2 cursor-pointer text-sm transition rounded-r-lg";
-            });
-            const activeMenu = document.getElementById(`menu-${materiId}`);
-            if (activeMenu) {
-                activeMenu.className = "materi-item bg-sky-500/20 text-sky-400 border-l-2 border-sky-400 px-3 py-2 cursor-pointer text-sm font-semibold transition rounded-r-lg";
-            }
 
             try {
                 const response = await fetch(`/materi/${materiId}.md`);
@@ -411,16 +685,143 @@
                 const htmlContent = marked.parse(markdownText);
                 
                 container.innerHTML = htmlContent;
-                
-                if (window.MathJax) {
-                    MathJax.typesetPromise([container]);
-                }
+                if (window.MathJax) MathJax.typesetPromise([container]);
             } catch (err) {
                 container.innerHTML = `
                     <div class="text-center py-12">
-                        <p class="text-amber-400 text-lg font-bold mb-2">🚧 Materi Belum Tersedia</p>
-                        <p class="text-slate-400 text-sm">Materi untuk topik ini sedang diracik oleh tim. Silakan periksa file <code class="bg-slate-800 px-2 py-1 rounded text-sky-400">materi/${materiId}.md</code> di repositori kamu.</p>
+                        <p class="text-amber-400 text-lg font-bold mb-2">🚧 Modul Paralaks & Astronomi</p>
+                        <p class="text-slate-400 text-sm">Gunakan editor di Management Panel untuk menyusun materi ini.</p>
                     </div>`;
+            }
+        };
+
+        // === 12. ADMIN / MANAGEMENT PANEL (AKUN MANAGEMENT) ===
+        function renderAdmin(container) {
+            container.innerHTML = `
+                <div class="mb-8">
+                    <div class="flex items-center gap-2 text-amber-400 font-bold mb-1">
+                        <span>⚙️</span> Management Panel
+                    </div>
+                    <h2 class="text-3xl font-bold font-space">Input & Kelola Konten</h2>
+                    <p class="text-slate-400">Tambahkan soal baru, kunci jawaban, pembahasan, dan materi pembelajaran.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Form Input Soal Baru -->
+                    <div class="glass p-6 rounded-2xl border border-slate-700">
+                        <h3 class="text-lg font-bold font-space mb-4 text-sky-400">+ Tambah Soal OSN Baru</h3>
+                        <form id="add-question-form" class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Tingkat</label>
+                                    <select id="input-tingkat" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                                        <option value="OSK">OSK</option>
+                                        <option value="OSP">OSP</option>
+                                        <option value="Semifinal">Semifinal</option>
+                                        <option value="OSN">OSN</option>
+                                        <option value="Latihan">Latihan Tambahan</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Tahun</label>
+                                    <input type="number" id="input-tahun" value="2026" min="2003" max="2026" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Topik / Materi</label>
+                                    <select id="input-topik" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                                        <option value="Mekanika Benda Langit">Mekanika Benda Langit</option>
+                                        <option value="Astrofisika & Fotometri">Astrofisika & Fotometri</option>
+                                        <option value="Astronomi Posisi">Astronomi Posisi</option>
+                                        <option value="Kosmologi">Kosmologi</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Kesulitan</label>
+                                    <select id="input-kesulitan" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                                        <option value="Mudah">Mudah</option>
+                                        <option value="Sedang">Sedang</option>
+                                        <option value="Sulit">Sulit</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Teks Soal (Dukungan LaTeX $...$)</label>
+                                <textarea id="input-soal" rows="4" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white" placeholder="Tuliskan soal di sini..."></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Kunci Jawaban Singkat</label>
+                                <input type="text" id="input-kunci" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white" placeholder="Misal: Jawaban B / 12.5 AU">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Pembahasan Lengkap</label>
+                                <textarea id="input-pembahasan" rows="4" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white" placeholder="Langkah penyelesaian..."></textarea>
+                            </div>
+
+                            <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold p-3 rounded-lg text-xs font-space">
+                                Simpan Soal ke Bank Data
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Quick Tools Management -->
+                    <div class="space-y-6">
+                        <div class="glass p-6 rounded-2xl border border-slate-700">
+                            <h3 class="text-lg font-bold font-space mb-2 text-amber-400">🔑 Buat Kode Kelas Baru</h3>
+                            <p class="text-xs text-slate-400 mb-4">Buat kelas khusus untuk grup siswa atau bimbingan OSN.</p>
+                            <div class="flex gap-2">
+                                <input type="text" id="new-class-code" placeholder="Kode Kelas (Misal: INTENSIF-2026)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white uppercase flex-grow">
+                                <button onclick="createClassCode()" class="bg-amber-500 hover:bg-amber-400 text-white font-bold px-4 py-2 rounded-lg text-xs">Buat</button>
+                            </div>
+                        </div>
+
+                        <div class="glass p-6 rounded-2xl border border-slate-700">
+                            <h3 class="text-lg font-bold font-space mb-2">📊 Informasi Bank Soal</h3>
+                            <div class="text-xs text-slate-300 space-y-2">
+                                <div class="flex justify-between py-1 border-b border-slate-800">
+                                    <span>Total Soal Terdaftar:</span>
+                                    <span class="font-bold text-sky-400" id="total-q-count">2 Soal</span>
+                                </div>
+                                <div class="flex justify-between py-1 border-b border-slate-800">
+                                    <span>Cakupan Tahun:</span>
+                                    <span class="font-bold text-sky-400">2003 - 2026</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('add-question-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const newQ = {
+                    id: 'q_' + Date.now(),
+                    tingkat: document.getElementById('input-tingkat').value,
+                    tahun: document.getElementById('input-tahun').value,
+                    topik: document.getElementById('input-topik').value,
+                    kesulitan: document.getElementById('input-kesulitan').value,
+                    soal: document.getElementById('input-soal').value,
+                    kunci: document.getElementById('input-kunci').value,
+                    pembahasan: document.getElementById('input-pembahasan').value
+                };
+
+                mockQuestions.unshift(newQ);
+                alert("Soal berhasil ditambahkan ke bank soal!");
+                e.target.reset();
+                document.getElementById('total-q-count').innerText = mockQuestions.length + " Soal";
+            });
+        }
+
+        window.createClassCode = function() {
+            const code = document.getElementById('new-class-code')?.value;
+            if (code) {
+                alert(`Kode kelas "${code.toUpperCase()}" berhasil dibuat! Siswa sekarang dapat bergabung menggunakan kode ini.`);
+                document.getElementById('new-class-code').value = '';
             }
         };
     </script>
